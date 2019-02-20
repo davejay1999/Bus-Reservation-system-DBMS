@@ -1,0 +1,104 @@
+/*If a person enters the source and destination stations then he gets all available buss on the specific date.*/
+	
+		create or replace view buslist as 
+	select busid from
+	(select busid,stopnumber as dno from route where stationid = 10) 
+	as r1 natural join route where stopnumber < dno and stationid = 2
+
+	select busid from buslist natural join busstatus where availabledate = '12/02/2017'
+
+/*Date with maximum reservation*/
+	select availabledate, reservedstatus, count(reservedstatus) from reservation where reservedstatus='confirmed' group by availabledate, reservedstatus
+	
+
+/*Total waiting in particular class on a particular bus*/
+
+	select busid,class,count(reservedstatus) as waiting from reservation where reservedstatus='waiting' group by busid,class
+
+/*If more number of waiting seats on a bus then suggest to add new seats (if waiting seats greater than confirmed seats for a bus, then we need to add new seats)*/
+
+	select * from
+	(
+	 select busid,count(reservedstatus) as waiting from reservation where reservedstatus='waiting' group by busid
+	)as r1 natural join
+	(
+	 select busid,count(reservedstatus) as confirmed from reservation where reservedstatus='confirmed' group by busid
+	)as r2;
+
+
+/*Give the available dates in months for a particular bus with departure times*/
+
+	select busid, availabledate, stationname, depttime from buslist natural join busstatus natural join bus natural join route 
+	join station on sourceid=station.stationid
+
+
+/*View reservations by a particular user i.e. reservation history*/
+
+	select * from reservation where emailid='a@elit.ca'
+
+	
+/*PNR number gives bus schedule*/
+
+	select busid,pnr,stationid,arrtime,depttime,day from reservation natural join route where pnr=123 order by stopnumber asc 
+
+/*bus number gives the schedule*/
+
+	select busid,stationname,arrtime,depttime,day from route natural join station where busid=12009
+
+/*Employee working on specific bus or station*/
+
+	select * from employee where busid='18610'
+	Or
+	select * from employee natural join station where stationname='ANAND'
+
+
+/*PNR gives waiting list number*/
+
+	Select pnr, class, seatno from passenger where pnr = 123
+
+/*PNR gives confirmed seat number*/
+
+	Select pnr, class, seatno from passenger where pnr = 123
+
+
+/*Giving the schedule of a bus based on bus id*/
+
+	select busid,stationname,arrtime,depttime from route natural join station where busid=18610
+
+
+/*If some person needs any assistance then he can get information of the on bus TC for any help.*/
+
+	select empname, phoneno from reservation join employee on (reservation.busid=employee.busid) where pnr = 123 and category = 'TC'
+
+
+/*Generate confirmed list and waiting list for a particular bus on a givendate*/
+
+	select * from (
+	select pnr,class,seatno,pname,reservedstatus,stationname as sourcename from (
+	select pnr,class,seatno,pname,reservedstatus,sourceid, destid from 
+	reservation natural join passenger 
+	where reservedstatus='waiting' or reservedstatus='confirmed' and availabledate='2017-12-01'and busid=12009
+	) as r1 join station on (r1.sourceid = station.stationid) order by reservedstatus asc
+	) as r3 natural join 
+	(
+	select pnr,class,seatno,pname,reservedstatus,stationname as destname from (
+	select pnr,class,seatno,pname,reservedstatus,sourceid, destid from 
+	reservation natural join passenger 
+	where reservedstatus='waiting' or reservedstatus='confirmed' and availabledate='2017-12-01'and busid=12009
+	) as r2 join station on (r2.destid = station.stationid) order by reservedstatus asc
+	) as r4
+
+/*Total passengers travelled on a particular bus on a given date*/
+
+	select * from (
+	select busid,availabledate,sum(b1+b2+b3) as total_passenger from(
+	select busid,availabledate,sum(bookedseats1) as b1,sum(bookedseats2) as b2 , sum(bookedseats3) as b3 from busstatus natural join bus group by 		(busid,availabledate) 
+	)as r1 group by (availabledate,busid)
+	)as r2 where busid='12010' and availabledate='12/4/17'
+
+
+
+
+
+
+

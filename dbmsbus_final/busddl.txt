@@ -1,0 +1,150 @@
+/*Station*/
+
+create Table Station
+(
+StationID int not null,
+StationName varchar(50) not null,
+primary key (StationID)
+)
+
+
+/*bus*/
+
+create Table bus
+(
+busID int not null,
+busName varchar(100) not null,
+busType varchar(50) not null,
+SeatsClass1 int,
+SeatsClass2 int,
+SeatsClass3 int,
+FareClass1 int,
+FareClass2 int,
+FareClass3 int,
+SourceID int null,
+DestID int null,
+primary key (busID),
+foreign key (SourceID) references Station(StationID) on update cascade on delete cascade,
+foreign key (DestID) references Station(StationID) on update no action on delete no action
+)
+
+
+/*Available Days*/
+
+
+create Table AvailableDays
+(
+busID int not null,
+Days varchar(10) not null,
+primary key (busID, Days)
+)
+
+
+/*bus Status*/
+
+create Table busStatus
+(
+busID int not null,
+AvailableDate date not null,
+BookedSeats1 int,
+BookedSeats2 int,
+BookedSeats3 int,
+WaitingSeats1 int,
+WaitingSeats2 int, 
+WaitingSeats3 int, 
+AvailableSeats1 int,
+AvailableSeats2 int, 
+AvailableSeats3 int,
+primary key (busID, AvailableDate),
+foreign key (busID) references bus(busID) on update cascade on delete cascade
+ )
+
+
+/*Route*/
+
+create Table Route
+(
+busID int not null,
+StopNumber int not null,
+StationID int not null,
+SourceDist int not null,
+ArrTime time,
+DeptTime time,
+Day int not null,
+primary key(busID,StopNumber,StationID),
+foreign key (busID) references bus(busID) on update cascade on delete cascade,
+foreign key (StationID) references Station(StationID) on update cascade on delete cascade
+)
+
+
+/*User*/
+
+create Table "User"
+(
+EmailID varchar(100) not null,
+UName varchar(30) not null,
+Password varchar(20) not null,
+Age int not null,
+Gender varchar(1) not null,
+MobileNo numeric(10,0) not null,
+City varchar(50) not null,
+State varchar(50) not null,
+primary key (EmailID)
+)
+
+
+/*Passenger*/
+
+create Table Passenger
+(
+PNR SERIAL not null,
+PName varchar(30) not null, 
+Gender varchar(1) not null,
+Age int not null,
+SeatNo int not null,
+Class int not null,
+Fare int not null,
+SourceID int not null,
+DestID int not null,
+primary key (PNR),
+foreign key (SourceID) references Station(StationID) on update cascade on delete cascade,
+foreign key (DestID) references Station(StationID) on update no action on delete no action
+)
+
+
+/*Reservation*/
+
+create Table Reservation
+(
+EmailID varchar(100) not null,
+PNR int not null,
+busID int not null,
+AvailableDate date not null,
+ReservedStatus varchar(10) null,
+ReservationDate date not null,
+SeatNo int not null,
+Class int not null,
+primary key (EmailID, PNR, busID, AvailableDate),
+foreign key (busID, AvailableDate) references busStatus(busID, AvailableDate) on update cascade on delete cascade,
+foreign key (EmailID) references "User"(EmailID) on update cascade on delete cascade,
+foreign key (PNR) references Passenger(PNR) on update cascade on delete cascade
+)
+
+
+/*Employee*/
+
+create Table Employee
+(
+EmpID int not null,
+EmpName varchar(30) not null,
+Category varchar(20) not null,
+busID int null,
+StationID int null,
+PhoneNo numeric(10,0),
+EmailID varchar(100),
+Address varchar(100),
+primary key(EmpID),
+foreign key (busID) references bus(busID) on update cascade on delete cascade,
+foreign key (StationID) references Station(StationID) on update cascade on delete cascade
+)
+

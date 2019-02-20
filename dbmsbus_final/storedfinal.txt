@@ -1,0 +1,404 @@
+/*********************************************************Stored Procedures*************************************************************/
+
+set search_path to bus;
+/*Total fare on particular bus for a passenger*/
+
+
+	create or replace function getfare(tid int,sid int,did int,cls int) returns 
+	integer as $body$
+	declare
+		sdis int;
+		ddis int;/*route.sourcedist%type;*/
+		finaldist integer;
+		fare integer;
+	begin
+		fare=0;
+		select sourcedist into sdis from route where stationid=sid and busid=tid;
+		select sourcedist into ddis from route where stationid=did and busid=tid;  
+		finaldist=ddis-sdis;
+		if cls=1 then 
+			fare=3*finaldist;
+		elseif cls=2 then 
+			fare=2*finaldist;
+		else
+			fare=1*finaldist;
+		end if;
+		return fare;
+	end $body$ language 'plpgsql';
+	
+
+
+/*Journey hours*/
+
+			create or replace function getjourneyhours(in tid int,in sid int,in did int,out tot_days int,out time_difference route.arrtime%type) returns record as $body$
+	declare
+		 atime route.arrtime%type;
+		 dtime route.arrtime%type;
+		 days int;
+		 dayd int;
+		 addtime route.arrtime%type;
+	begin
+		tot_days=0;
+		select depttime into atime from route where busid=tid and stationid=sid;
+		select "day" into days from route where busid=tid and stationid=sid;
+		select arrtime into dtime from route where busid=tid and stationid=did;
+		select "day" into dayd from route where busid=tid and stationid=did;
+		time_difference=dtime-atime;
+		if dtime<atime then
+		tot_days=dayd-days-1;
+		else
+		tot_days=dayd-days;
+		end if;
+	end $body$ language 'plpgsql';
+
+
+
+
+/*Book Seats*/
+
+		create or replace view booking as select * from passenger natural join reservation;
+
+	CREATE OR REPLACE FUNCTION bus.bookseat(tid integer, sid integer, did integer, adate date, cls integer, pname character varying, gender character varying, emailid character varying, age integer)
+	  RETURNS integer AS
+	$BODY$
+	Declare
+		i booking%rowtype;
+		j booking%rowtype;
+		aseats integer;
+		n integer;
+		cnt integer;
+		state1 integer;
+		state2 integer;
+		id integer;
+		pnrr integer;	
+		ssid int;
+		ddid int;
+		state3 int;
+		wait int;	
+		sc1 integer;
+		sc2 integer;
+		sc3 integer;
+		sn1 integer;
+		sn2 integer;
+		f integer;
+	begin
+		select stopnumber into sn1 from route natural join busstatus where busid = tid and availabledate = adate and stationid = sid;
+		select stopnumber into sn2 from route natural join busstatus where busid = tid and availabledate = adate and stationid = did;
+
+		if sn1< sn2 then
+		select count(seatno) into wait from booking where busid = tid and availabledate = adate and reservedstatus = 'waiting';
+		if wait>0 then
+		select max(seatno) into wait from booking where busid = tid and availabledate = adate and reservedstatus = 'waiting';
+		end if;
+		wait =wait+1;
+		select sssid into ssid from (select busid,stopnumber as sssid from route where busid = tid and stationid = sid) as r1 natural join route where stationid =did;
+		id =0;
+		select stopnumber into ddid from (select busid,stopnumber as ssid from route where busid = tid and stationid = sid) as r1 natural join route where stationid =did;
+
+		raise notice '% % ',ssid,ddid;
+		pnrr =0;
+		select count(pnr) into pnrr from passenger;
+		if pnrr>0 then
+		select max(pnr) into pnrr from passenger;
+		end if;
+		pnrr = pnrr+1;
+
+		if cls = 1 then	 
+			select availableseats1 into aseats from busstatus where busid = tid and availabledate = adate ;
+			select seatsclass1 into sc1 from bus where busid = tid;
+		elseif cls =2 then
+		select availableseats2 into aseats from busstatus where busid = tid and availabledate = adate ;
+		select seatsclass2 into sc2 from bus where busid = tid;
+		else
+		select availableseats3 into aseats from busstatus where busid = tid and availabledate = adate ;
+		select seatsclass3 into sc3 from bus where busid = tid;
+		end if;
+	
+		if aseats > 0 then
+			if cls = 1 then
+				f = getfare(tid,sid,did,cls);
+				update busstatus set availableseats1 = aseats - 1 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats1 = sc1 -aseats + 1 where busid = tid and availabledate = adate ;
+				insert into passenger(pnr,pname,gender,age,seatno,class,fare,sourceid,destid) values (pnrr,pname,gender,age,sc1 - aseats + 1,cls,f,sid,did);
+				insert into reservation(emailid,pnr,busid,availabledate,reservedstatus,reservationdate,seatno,class) values(emailid,pnrr,tid,adate,'confirmed','11/11/2017',sc1 - aseats + 1,cls);
+				return pnrr;
+			elseif cls =2 then
+				f = getfare(tid,sid,did,cls);
+				update busstatus set availableseats2 = aseats - 1 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats2 = sc2 -aseats + 1 where busid = tid and availabledate = adate ;
+				insert into passenger(pnr,pname,gender,age,seatno,class,fare,sourceid,destid) values (pnrr,pname,gender,age,sc2- aseats + 1,cls,f,sid,did);
+				insert into reservation(emailid,pnr,busid,availabledate,reservedstatus,reservationdate,seatno,class) values(emailid,pnrr,tid,adate,'confirmed','11/11/2017',sc2 - aseats + 1,cls);
+				return pnrr;
+			else 
+				f = getfare(tid,sid,did,cls);
+				update busstatus set availableseats3 = aseats - 1 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats3 = sc3 -aseats + 1 where busid = tid and availabledate = adate ;
+				insert into passenger(pnr,pname,gender,age,seatno,class,fare,sourceid,destid) values (pnrr,pname,gender,age,sc3 - aseats + 1,cls,f,sid,did);
+				insert into reservation(emailid,pnr,busid,availabledate,reservedstatus,reservationdate,seatno,class) values(emailid,pnrr,tid,adate,'confirmed','11/11/2017',sc3 - aseats + 1,cls);
+				return pnrr;
+			end if;
+		end if;
+		state1= 0;state2=0;
+		for i in select * from booking order by seatno asc loop
+			raise notice 'seat no % ', i.seatno;
+			select count(destid) into n from booking where seatno = i.seatno and busid = tid and availabledate = adate group by seatno; 
+			raise notice 'booked % ',n;
+			cnt = 0;
+			state1=0;state2=0;
+			state3 =0;
+		
+			for j in select * from booking where seatno = i.seatno order by destid desc loop
+				if j.destid=ddid then
+					if j.sourceid = ssid then
+						state3 = 1;
+					end if;
+				end if;
+				raise notice 'dest %' , j.destid;
+				cnt = cnt+1;
+				if j.destid<=ssid then
+					state1 =1;
+					id = j.destid;
+					raise notice 'ssid %', ssid;
+					if cnt=1 then
+						state2=1;
+					end if;
+					exit;
+				end if;
+			end loop;
+			cnt=0;
+			raise notice '%' ,id;
+			for j in select * from booking where seatno = i.seatno order by sourceid asc loop
+					if j.sourceid!=id then
+						cnt =cnt+1;
+						if j.sourceid>ssid and j.sourceid<ddid then
+							exit;
+						end if;
+						if j.sourceid>=ddid then
+							raise notice '% %',j.sourceid,ddid;
+							state2 =1;
+						
+							if cnt=1 then
+								state1=1;
+							end if;
+							exit;
+						end if;
+					end if;
+			end loop;
+			if state1=1 and state2=1 and state3=0 then
+				f = getfare(tid,sid,did,cls);
+				insert into passenger(pnr,pname,gender,age,seatno,class,fare,sourceid,destid) values (pnrr,pname,gender,age,i.seatno,cls,f,sid,did);
+				insert into reservation(emailid,pnr,busid,availabledate,reservedstatus,reservationdate,seatno,class) values(emailid,pnrr,tid,adate,'confirmed','11/11/2017',i.seatno,cls);
+				return pnrr;
+			end if;
+					
+
+		end loop;
+
+
+		raise notice '% ',aseats ;
+		f = getfare(tid,sid,did,cls);
+		insert into passenger(pnr,pname,gender,age,seatno,class,fare,sourceid,destid) values (pnrr,pname,gender,age,wait,cls,f,sid,did);
+		insert into reservation(emailid,pnr,busid,availabledate,reservedstatus,reservationdate,seatno,class) values(emailid,pnrr,tid,adate,'waiting','11/11/2017',wait,cls);	  
+	
+	
+		return pnrr;
+		else 
+		return -1;
+		end if;
+	
+	
+	end $BODY$
+	  LANGUAGE 'plpgsql';
+
+
+/*Ticket Cancellation*/
+
+
+	create or replace function cancel(pnrr int) returns void as $body$
+		declare
+			tid integer;
+			adate date;
+			sno int;
+			cls int;
+			flag int;
+			pnnr int;
+		begin
+			update reservation set reservedstatus = 'cancel' where pnr = pnrr;
+			select busid into tid from booking where pnr = pnrr;
+			select availabledate into adate from booking where pnr = pnrr;
+			select class into cls from booking where pnr = pnrr;
+			select seatno into sno from booking where pnr = pnrr;
+			 perform checkavailability(tid,adate,cls,sno);
+			raise notice '% % % %' , tid,adate,cls,sno;
+			select pnr into pnnr from reservation where reservedstatus='waiting' and class=cls and availabledate=adate and seatno=1;
+			if pnnr > 0 then
+			perform getseatsoncancel(pnnr,tid,adate,cls,sno);
+			end if;
+	end $body$ language 'plpgsql';
+
+
+/*Check Availibility*/
+
+
+	create or replace function checkavailability(in tid int,in adate date,in cls int,in sno int,inout flag int) returns integer as $body$
+		declare 
+		aseats integer;
+		bseats integer;
+		cnt integer;
+		begin	
+
+			 select count(seatno) into cnt from booking where busid = tid and availabledate = adate and seatno = sno and class = cls;
+				if cnt=1 then		
+					if cls =1 then
+						select availableseats1 into aseats from busstatus where busid = tid and availabledate = adate;
+						select bookedseats1 into bseats from busstatus where busid = tid and availabledate = adate;
+						update busstatus set availableseats1 = aseats+1 where busid = tid and availabledate = adate;
+						update busstatus set bookedseats1 = bseats-1 where busid = tid and availabledate = adate;
+					elseif cls =2 then
+						select availableseats2 into aseats from busstatus where busid = tid and availabledate = adate;
+						select bookedseats2 into bseats from busstatus where busid = tid and availabledate = adate;
+						update busstatus set availableseats2 = aseats +1 where busid = tid and availabledate = adate;
+						update busstatus set bookedseats2 = bseats-1 where busid = tid and availabledate = adate;
+					else
+						select availableseats3 into aseats from busstatus where busid = tid and availabledate = adate;
+						select bookedseats3 into bseats from busstatus where busid = tid and availabledate = adate;
+						update busstatus set availableseats3 = aseats +1 where busid = tid and availabledate = adate;
+						update busstatus set bookedseats3 = bseats-1 where busid = tid and availabledate = adate;
+					end if;	
+					flag = 1;
+					raise notice 'here %',flag;
+				
+				end if;
+	end $body$ language 'plpgsql';
+
+
+/*After cancellation the people on waitlist are updated*/
+
+
+
+	create or replace function getseats1(pnrr int,tid int,adate date,cls int,i int) returns void as $body$
+		declare
+			aseats int;
+			j booking%rowtype;
+			state1 int;
+			state2 int;
+			state3 int;
+			id int;
+			n int;
+			p reservation%rowtype;
+			cnt int;
+			ssid int;
+			ddid int;
+			sid int;
+			did int;
+		begin
+	
+	
+		select sourceid into sid from passenger where pnr = pnrr;
+		select destid into did from passenger where pnr =pnrr;
+	
+		select sssid into ssid from (select busid,stopnumber as sssid from route where busid = tid and stationid = sid) as r1 natural join route where stationid =did;
+		id =0;
+		select stopnumber into ddid from (select busid,stopnumber as ssid from route where busid = tid and stationid = sid) as r1 natural join route where stationid =did;
+
+
+		if cls = 1 then	 
+			select availableseats1 into aseats from busstatus where busid = tid and availabledate = adate ;
+		elseif cls =2 then
+			select availableseats2 into aseats from busstatus where busid = tid and availabledate = adate ;
+		else
+			select availableseats3 into aseats from busstatus where busid = tid and availabledate = adate ;
+		end if;
+	
+		if aseats>0 then
+
+			update reservation set reservedstatus='confirmed' where pnr=pnrr;
+			update reservation set seatno=i where pnr=pnrr;
+
+			if cls = 1 then
+				update busstatus set availableseats1 = 0 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats1 = 10 where busid = tid and availabledate = adate ;
+			elseif cls =2 then
+				update busstatus set availableseats2 = 0 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats2 = 10  where busid = tid and availabledate = adate ;
+			else 
+				update busstatus set availableseats3 = 0 where busid = tid and availabledate = adate ;
+				update busstatus set bookedseats3 = 10  where busid = tid and availabledate = adate ;
+			end if;
+		end if;
+		
+			for p in select * from reservation where reservedstatus = 'waiting' order by seatno asc loop
+		
+			select count(destid) into n from booking where seatno = i and busid = tid and availabledate = adate  and reservedstatus = 'confirmed' group by seatno; 
+		
+			cnt = 0;
+			state1=0;state2=0;
+			state3 =0;
+		
+			for j in select * from booking where seatno = i order by destid desc loop
+				if j.destid=ddid then
+					if j.sourceid = ssid then
+						state3 = 1;
+					end if;
+				end if;
+			
+				cnt = cnt+1;
+				if j.destid<=ssid then
+					state1 =1;
+					id = j.destid;
+				
+					if cnt=1 then
+						state2=1;
+					end if;
+					exit;
+				end if;
+			end loop;
+			cnt=0;
+		
+			for j in select * from booking where seatno = i order by sourceid asc loop
+					if j.sourceid!=id then
+						cnt =cnt+1;
+						if j.sourceid>ssid and j.sourceid<ddid then
+							exit;
+						end if;
+						if j.sourceid>=ddid then
+							raise notice '% %',j.sourceid,ddid;
+							state2 =1;
+						
+							if cnt=1 then
+								state1=1;
+							end if;
+							exit;
+						end if;
+					end if;
+			end loop;
+		
+			if state1=1 and state2=1 and state3=0 then
+				update reservation set reserved='confirmed' where pnr=pnrr;
+				update reservation set seatno=i where pnr=pnrr;
+			
+			end if;
+			
+		end loop;
+			cnt =1;
+		for p in select * from reservation where reservedstatus='waiting' order by seatno asc loop
+			update reservation set seatno = cnt where pnr = p.pnr;
+			cnt =cnt +1;
+		end loop;
+	
+		if cls = 1 then
+				update busstatus set waitingseats1 = cnt-1 where busid = tid and availabledate = adate ;
+			
+			elseif cls =2 then
+				update busstatus set waitingseats2 = cnt-1 where busid = tid and availabledate = adate ;
+			
+			else 
+				update busstatus set waitingseats3 = cnt-1 where busid = tid and availabledate = adate ;
+			
+			end if;
+	
+
+	end $body$ language 'plpgsql';
+	 
+
+
